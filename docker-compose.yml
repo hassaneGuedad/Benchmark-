@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: benchmark-postgres
+    environment:
+      POSTGRES_DB: benchmark_db
+      POSTGRES_USER: admin        # Modifié selon ton utilisateur
+      POSTGRES_PASSWORD: admin    # Modifié selon ton mot de passe
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/main/resources/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - benchmark
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: benchmark-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - benchmark
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: benchmark-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+    ports:
+      - "5433:5432"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - benchmark
+
+  influxdb:
+    image: influxdb:2-alpine
+    container_name: benchmark-influxdb
+    environment:
+      INFLUXDB_DB: jmeter
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_ADMIN_PASSWORD: admin123
+      INFLUXDB_HTTP_AUTH_ENABLED: "true"
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - benchmark
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  influxdb_data:
+
+networks:
+  benchmark:
+    driver: bridge
